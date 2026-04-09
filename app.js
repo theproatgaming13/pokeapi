@@ -18,6 +18,20 @@
         return `#${String(id).padStart(3, '0')}`;
     }
 
+    function extractPokemonIdFromUrl(url) {
+        const match = String(url).match(/\/pokemon\/(\d+)\/?$/);
+        if (!match) {
+            return null;
+        }
+
+        const parsedId = Number.parseInt(match[1], 10);
+        return Number.isFinite(parsedId) ? parsedId : null;
+    }
+
+    function getPokemonSpriteUrl(id) {
+        return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+    }
+
     function buildUrlFromState(state) {
         const url = new URL(window.location.href);
         url.searchParams.delete('offset');
@@ -200,26 +214,34 @@
             }
 
             const data = await response.json();
-            const pokemonList = data.results;
+            const pokemonList = data.results
+                .map((pokemon) => {
+                    const id = extractPokemonIdFromUrl(pokemon.url);
+                    if (!id) {
+                        return null;
+                    }
+
+                    return {
+                        id,
+                        name: pokemon.name,
+                        imageUrl: getPokemonSpriteUrl(id)
+                    };
+                })
+                .filter(Boolean);
             currentOffset = offset;
             const currentPage = Math.floor(currentOffset / PAGE_LIMIT) + 1;
 
-            // Fetch all details in parallel so rendering is faster and stable.
-            const pokemonDataList = await Promise.all(
-                pokemonList.map((pokemon) => fetchPokemonData(pokemon.name))
-            );
-
             pokemonInfoDiv.innerHTML = `
                 <div id="pokemonGrid" class="pokemon-grid">
-                    ${pokemonDataList.map((pokemonData) => `
+                    ${pokemonList.map((pokemon) => `
                         <button
                             type="button"
                             class="pokemon-card"
-                            data-pokemon-name="${pokemonData.name}"
+                            data-pokemon-name="${pokemon.name}"
                         >
-                            <p class="card-id">${formatPokemonId(pokemonData.id)}</p>
-                            <h3 class="card-title">${pokemonData.name.toUpperCase()}</h3>
-                            <img class="card-sprite" src="${pokemonData.sprites.front_default}" alt="${pokemonData.name}">
+                            <p class="card-id">${formatPokemonId(pokemon.id)}</p>
+                            <h3 class="card-title">${pokemon.name.toUpperCase()}</h3>
+                            <img class="card-sprite" src="${pokemon.imageUrl}" alt="${pokemon.name}">
                         </button>
                     `).join('')}
                 </div>
